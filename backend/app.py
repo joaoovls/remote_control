@@ -87,9 +87,19 @@ def controls():
         elif acao == 'mute':
             pyautogui.press('volumemute')
 
+        elif acao == 'move_win_left':
+            pyautogui.hotkey('win', 'shift', 'left')
+
+        elif acao == 'move_win_right':
+            pyautogui.hotkey('win', 'shift', 'right')
+
         elif acao == 'minimize':
             pyautogui.hotkey('super', 'down')   # Windows
             # pyautogui.hotkey('super', 'h')   # Linux
+
+        elif acao == 'lock_screen':
+            # Comando nativo do Windows para bloquear a estação de trabalho
+            os.system('rundll32.exe user32.dll,LockWorkStation')
 
         elif acao == 'maximize':
             pyautogui.hotkey('super', 'up')
@@ -103,8 +113,8 @@ def controls():
         elif acao == 'task_switch':
             pyautogui.hotkey('alt', 'tab')
 
-        elif acao == 'task_manager':
-            pyautogui.hotkey('ctrl', 'shift', 'esc')
+        elif acao == 'shutdown':
+            pyautogui.hotkey('shutdown /s /t 0')
 
         elif acao == 'screenshot':
             img = pyautogui.screenshot()
