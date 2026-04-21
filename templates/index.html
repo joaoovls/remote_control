@@ -1,10 +1,775 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <title>Title</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Controle Remoto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #0a0a0c;
+    --surface: #13131a;
+    --card:    #1a1a24;
+    --border:  #2a2a38;
+    --accent:  #f59e0b;
+    --accent2: #fb923c;
+    --text:    #e8e8f0;
+    --muted:   #6b6b80;
+    --danger:  #ef4444;
+    --success: #22c55e;
+    --mono:    'Share Tech Mono', monospace;
+    --sans:    'Exo 2', sans-serif;
+    --tab-h:   64px;
+    --header-h:52px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%; width: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  header {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: var(--header-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px; z-index: 100;
+  }
+  .logo {
+    font-family: var(--mono); font-size: 13px;
+    color: var(--accent); letter-spacing: 2px; text-transform: uppercase;
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted);
+    box-shadow: 0 0 0 0 transparent;
+    transition: all .4s;
+  }
+  .status-dot.online {
+    background: var(--success);
+    box-shadow: 0 0 8px var(--success);
+    animation: pulse-dot 2s infinite;
+  }
+  @keyframes pulse-dot {
+    0%,100% { opacity:1 } 50% { opacity:.5 }
+  }
+
+  main {
+    position: fixed;
+    top: var(--header-h); bottom: var(--tab-h);
+    left: 0; right: 0;
+    overflow: hidden;
+  }
+  .page {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    padding: 12px;
+    opacity: 0; pointer-events: none;
+    transform: translateY(10px);
+    transition: opacity .2s, transform .2s;
+    overflow-y: auto;
+    gap: 10px;
+  }
+  .page.active {
+    opacity: 1; pointer-events: all; transform: translateY(0);
+  }
+
+  nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    height: var(--tab-h);
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    z-index: 100;
+  }
+  .tab {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 4px; cursor: pointer;
+    color: var(--muted); font-size: 10px;
+    font-family: var(--mono); letter-spacing: 1px;
+    text-transform: uppercase;
+    border: none; background: none;
+    transition: color .2s;
+    padding: 0;
+  }
+  .tab svg { width: 22px; height: 22px; stroke-width: 1.5; }
+  .tab.active { color: var(--accent); }
+  .tab.active svg { filter: drop-shadow(0 0 6px var(--accent)); }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+  }
+  .card-label {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 2px; color: var(--muted);
+    text-transform: uppercase; margin-bottom: 10px;
+  }
+
+  .btn {
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text); cursor: pointer;
+    font-family: var(--sans); font-weight: 600;
+    user-select: none; transition: all .12s;
+    gap: 6px;
+  }
+  .btn:active { transform: scale(0.93); filter: brightness(1.3); }
+  .btn.accent { border-color: var(--accent); color: var(--accent); background: rgba(245,158,11,.08); }
+  .btn.accent:active { background: rgba(245,158,11,.2); }
+  .btn.danger { border-color: var(--danger); color: var(--danger); background: rgba(239,68,68,.08); }
+  .btn.danger:active { background: rgba(239,68,68,.2); }
+  .btn.success { border-color: var(--success); color: var(--success); background: rgba(34,197,94,.08); }
+  .btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+  #toast {
+    position: fixed; bottom: calc(var(--tab-h) + 12px);
+    left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--card); border: 1px solid var(--accent);
+    color: var(--accent); font-family: var(--mono);
+    font-size: 12px; padding: 8px 16px; border-radius: 20px;
+    opacity: 0; transition: all .2s; z-index: 200;
+    white-space: nowrap; pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  #page-trackpad { padding: 10px; }
+
+  #trackpad {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    min-height: 240px;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    cursor: crosshair;
+    overflow: hidden;
+    transition: border-color .15s;
+  }
+  #trackpad.touching { border-color: var(--accent); }
+  .trackpad-hint {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--muted); text-align: center; line-height: 1.8;
+    pointer-events: none; user-select: none;
+  }
+  .trackpad-cursor {
+    position: absolute; width: 24px; height: 24px;
+    border-radius: 50%; background: rgba(245,158,11,.3);
+    border: 2px solid var(--accent);
+    transform: translate(-50%, -50%);
+    pointer-events: none; opacity: 0;
+    transition: opacity .15s;
+  }
+
+  .click-row {
+    display: grid; grid-template-columns: 1fr 60px 1fr;
+    gap: 8px; min-height: 52px;
+  }
+  .btn-click { font-size: 13px; padding: 0; }
+  .btn-scroll {
+    display: flex; flex-direction: column;
+    gap: 4px; background: none; border: none; padding: 0;
+  }
+  .btn-scroll .btn { height: 100%; font-size: 18px; padding: 0; }
+
+  .mouse-extras {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px; min-height: 44px;
+  }
+  .btn-sm { font-size: 11px; padding: 6px 4px; }
+
+  /* sensitivity row */
+  .sens-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .sens-row label { font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; }
+  .sens-row input[type=range] {
+    flex: 1; -webkit-appearance: none; height: 3px;
+    background: var(--border); border-radius: 2px; outline: none;
+  }
+  .sens-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px;
+    border-radius: 50%; background: var(--accent); cursor: pointer;
+  }
+  .sens-val { font-family: var(--mono); font-size: 11px; color: var(--accent); width: 24px; text-align: right; }
+
+  .media-transport {
+    display: flex; align-items: center; justify-content: center;
+    gap: 16px; padding: 20px 0;
+  }
+  .btn-prev, .btn-next { width: 56px; height: 56px; border-radius: 50%; }
+  .btn-play {
+    width: 76px; height: 76px; border-radius: 50%;
+    border-color: var(--accent); background: rgba(245,158,11,.1);
+    font-size: 28px;
+  }
+  .btn-play svg { width: 32px; height: 32px; }
+  .btn-prev svg, .btn-next svg { width: 24px; height: 24px; }
+
+  .vol-row {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .vol-row .btn { flex: 1; height: 52px; font-size: 13px; }
+  .btn-mute { width: 52px; height: 52px; border-radius: 50%; }
+
+  .media-extra {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .media-extra .btn { height: 48px; font-size: 12px; }
+
+  .text-row {
+    display: flex; gap: 8px;
+  }
+  .text-row input {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+    color: var(--text); font-family: var(--sans); font-size: 15px;
+    outline: none; transition: border-color .2s;
+  }
+  .text-row input:focus { border-color: var(--accent); }
+  .text-row .btn { width: 56px; height: 48px; flex-shrink: 0; }
+
+  .key-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .key-grid .btn { height: 46px; font-size: 12px; border-radius: 8px; }
+  .key-wide { grid-column: span 2; }
+  .key-full { grid-column: span 4; }
+
+  .arrows {
+    display: grid;
+    grid-template-columns: repeat(3, 52px);
+    grid-template-rows: repeat(2, 48px);
+    gap: 6px; justify-content: center;
+  }
+  .arrows .btn { width: 52px; height: 48px; border-radius: 8px; }
+  .arr-up   { grid-column: 2; grid-row: 1; }
+  .arr-left { grid-column: 1; grid-row: 2; }
+  .arr-down { grid-column: 2; grid-row: 2; }
+  .arr-right{ grid-column: 3; grid-row: 2; }
+
+  .sys-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .sys-grid .btn { height: 60px; font-size: 12px; flex-direction: column; gap: 6px; }
+  .sys-grid .btn svg { width: 22px; height: 22px; }
+
+  #screenshot-area {
+    display: none;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+  }
+  #screenshot-area img { width: 100%; display: block; }
+  .screenshot-label {
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+    padding: 6px 12px; text-align: center;
+  }
+
+</style>
 </head>
 <body>
 
+<header>
+  <span class="logo">// REMOTE CTL</span>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span style="font-family:var(--mono);font-size:11px;color:var(--muted)" id="status-text">conectando…</span>
+    <div class="status-dot" id="status-dot"></div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ════════ TRACKPAD ════════ -->
+  <section class="page active" id="page-trackpad">
+
+    <div class="sens-row">
+      <label>SENS</label>
+      <label for="sensitivity"></label><input type="range" id="sensitivity" min="0.5" max="4" step="0.5" value="1.5">
+      <span class="sens-val" id="sens-val">1.5</span>
+    </div>
+
+    <div id="trackpad">
+      <div class="trackpad-hint">
+        ● Arrastar → mover mouse<br>
+        ● Toque rápido → clique<br>
+        ● 2 dedos → scroll
+      </div>
+      <div class="trackpad-cursor" id="tp-cursor"></div>
+    </div>
+
+    <div class="click-row">
+      <button class="btn btn-click" id="btn-lclick">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 3h6v9H5zM13 3h6v9h-6zM5 21V12h14v9L12 24 5 21z" stroke-linejoin="round"/></svg>
+        Esq
+      </button>
+      <div class="btn-scroll">
+        <button class="btn" id="btn-scroll-up" style="height:calc(50% - 2px)">▲</button>
+        <button class="btn" id="btn-scroll-down" style="height:calc(50% - 2px)">▼</button>
+      </div>
+      <button class="btn btn-click" id="btn-rclick">
+        Dir
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 3h6v9H5zM13 3h6v9h-6zM5 21V12h14v9L12 24 5 21z" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+
+    <div class="mouse-extras">
+      <button class="btn btn-sm" id="btn-dclick">Duplo clique</button>
+      <button class="btn btn-sm" id="btn-mclick">Botão meio</button>
+      <button class="btn btn-sm accent" onclick="cmd('task_switch')">Alt+Tab</button>
+    </div>
+
+  </section>
+
+  <!-- ════════ MÍDIA ════════ -->
+  <section class="page" id="page-media">
+
+    <div class="card">
+      <div class="card-label">Reprodução</div>
+      <div class="media-transport">
+        <button class="btn btn-prev" onclick="cmd('prev_track')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+        </button>
+        <button class="btn btn-play accent" id="btn-play" onclick="cmd('play_pause')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" id="play-icon"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </button>
+        <button class="btn btn-next" onclick="cmd('next_track')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Volume</div>
+      <div class="vol-row">
+        <button class="btn" style="height:52px;font-size:22px" onclick="cmd('volume_down')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+          Vol −
+        </button>
+        <button class="btn btn-mute" onclick="cmd('mute')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+        </button>
+        <button class="btn" style="height:52px;font-size:22px" onclick="cmd('volume_up')">
+          Vol +
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Extras</div>
+      <div class="media-extra">
+        <button class="btn" style="height:48px;font-size:12px" onclick="cmd('hotkey',{keys:['ctrl','shift','n']})">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Nova aba
+        </button>
+        <button class="btn" style="height:48px;font-size:12px" onclick="cmd('hotkey',{keys:['ctrl','w']})">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Fechar aba
+        </button>
+        <button class="btn" style="height:48px;font-size:12px" onclick="cmd('hotkey',{keys:['super','l']})">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Bloquear
+        </button>
+        <button class="btn" style="height:48px;font-size:12px" onclick="cmd('hotkey',{keys:['ctrl','alt','t']})">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          Terminal
+        </button>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ════════ TECLADO ════════ -->
+  <section class="page" id="page-keyboard">
+
+    <div class="card">
+      <div class="card-label">Digitar texto</div>
+      <div class="text-row">
+        <label for="text-input"></label><input type="text" id="text-input" placeholder="Digite aqui e envie…" autocomplete="off">
+        <button class="btn accent" id="btn-send-text">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Teclas especiais</div>
+      <div class="key-grid">
+        <button class="btn key-wide" onclick="cmd('key_press',{key:'enter'})">↵ Enter</button>
+        <button class="btn key-wide" onclick="cmd('key_press',{key:'backspace'})">⌫ Delete</button>
+        <button class="btn" onclick="cmd('key_press',{key:'escape'})">Esc</button>
+        <button class="btn" onclick="cmd('key_press',{key:'tab'})">Tab</button>
+        <button class="btn" onclick="cmd('key_press',{key:'space'})">Space</button>
+        <button class="btn" onclick="cmd('key_press',{key:'delete'})">Del</button>
+        <button class="btn" onclick="cmd('key_press',{key:'home'})">Home</button>
+        <button class="btn" onclick="cmd('key_press',{key:'end'})">End</button>
+        <button class="btn" onclick="cmd('key_press',{key:'pageup'})">PgUp</button>
+        <button class="btn" onclick="cmd('key_press',{key:'pagedown'})">PgDn</button>
+        <button class="btn" onclick="cmd('hotkey',{keys:['ctrl','a']})">Sel. All</button>
+        <button class="btn" onclick="cmd('hotkey',{keys:['ctrl','c']})">Copiar</button>
+        <button class="btn" onclick="cmd('hotkey',{keys:['ctrl','v']})">Colar</button>
+        <button class="btn" onclick="cmd('hotkey',{keys:['ctrl','z']})">Desfaz.</button>
+        <button class="btn" onclick="cmd('hotkey',{keys:['ctrl','s']})">Salvar</button>
+        <button class="btn" onclick="cmd('key_press',{key:'f5'})">F5</button>
+      </div>
+    </div>
+
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;gap:0">
+      <div class="card-label" style="width:100%">Setas</div>
+      <div class="arrows">
+        <button class="btn arr-up" onclick="cmd('key_press',{key:'up'})">▲</button>
+        <button class="btn arr-left" onclick="cmd('key_press',{key:'left'})">◀</button>
+        <button class="btn arr-down" onclick="cmd('key_press',{key:'down'})">▼</button>
+        <button class="btn arr-right" onclick="cmd('key_press',{key:'right'})">▶</button>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ════════ SISTEMA ════════ -->
+  <section class="page" id="page-system">
+
+    <div class="card">
+      <div class="card-label">Janelas</div>
+      <div class="sys-grid">
+        <button class="btn" onclick="cmd('minimize')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          Minimizar
+        </button>
+        <button class="btn" onclick="cmd('maximize')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          Maximizar
+        </button>
+        <button class="btn" onclick="cmd('task_switch')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Alt + Tab
+        </button>
+        <button class="btn" onclick="cmd('show_desktop')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Desktop
+        </button>
+        <button class="btn danger" onclick="cmd('close_window')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          Fechar jan.
+        </button>
+        <button class="btn" onclick="cmd('task_manager')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Ger. tarefas
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Captura</div>
+      <button class="btn accent" style="width:100%;height:52px;font-size:13px" id="btn-screenshot">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        Tirar Screenshot
+      </button>
+      <div id="screenshot-area" style="margin-top:8px">
+        <img id="screenshot-img" src="" alt="screenshot">
+        <div class="screenshot-label" id="screenshot-time"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Teclas de função</div>
+      <div class="key-grid" style="grid-template-columns:repeat(6,1fr)">
+        <button class="btn btn-sm" onclick="cmd('key_press',{key:'f1'})">F1</button>
+        <button class="btn btn-sm" onclick="cmd('key_press',{key:'f2'})">F2</button>
+        <button class="btn btn-sm" onclick="cmd('key_press',{key:'f3'})">F3</button>
+        <button class="btn btn-sm" onclick="cmd('key_press',{key:'f4'})">F4</button>
+        <button class="btn btn-sm" onclick="cmd('key_press',{key:'f5'})">F5</button>
+        <button class="btn btn-sm" onclick="cmd('key_press',{key:'f6'})">F6</button>
+        <button class="btn btn-sm" onclick="cmd('key_press',{key:'f7'})">F7</button>
+        <button class="btn btn-sm" onclick="cmd('key_press',{key:'f8'})">F8</button>
+        <button class="btn btn-sm" onclick="cmd('key_press',{key:'f9'})">F9</button>
+        <button class="btn btn-sm" onclick="cmd('key_press',{key:'f10'})">F10</button>
+        <button class="btn btn-sm" onclick="cmd('key_press',{key:'f11'})">F11</button>
+        <button class="btn btn-sm" onclick="cmd('key_press',{key:'f12'})">F12</button>
+      </div>
+    </div>
+
+  </section>
+
+</main>
+
+<!-- TAB BAR -->
+<nav>
+  <button class="tab active" data-page="trackpad" onclick="switchTab(this,'trackpad')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="3" width="20" height="18" rx="3"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    Trackpad
+  </button>
+  <button class="tab" data-page="media" onclick="switchTab(this,'media')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+    Mídia
+  </button>
+  <button class="tab" data-page="keyboard" onclick="switchTab(this,'keyboard')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M8 7V5a4 4 0 0 1 8 0v2"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg>
+    Teclado
+  </button>
+  <button class="tab" data-page="system" onclick="switchTab(this,'system')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 1 0 0 14.14M19.07 4.93l-1.41 1.41"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
+    Sistema
+  </button>
+</nav>
+
+<div id="toast"></div>
+
+<script>
+// ── TAB SWITCHING ──────────────────────────────────────
+function switchTab(btn, page) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('page-' + page).classList.add('active');
+}
+
+// ── TOAST ──────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1200);
+}
+
+// ── COMMAND SENDER ─────────────────────────────────────
+let isOnline = false;
+async function cmd(acao, extra = {}) {
+  try {
+    const res = await fetch('/comando', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao, ...extra })
+    });
+    if (res.ok) {
+      setOnline(true);
+        return await res.json();
+    } else {
+      setOnline(false);
+    }
+  } catch (e) {
+    setOnline(false);
+  }
+}
+
+function setOnline(v) {
+  isOnline = v;
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-text');
+  if (v) { dot.className = 'status-dot online'; txt.textContent = 'conectado'; }
+  else    { dot.className = 'status-dot';        txt.textContent = 'sem conexão'; }
+}
+
+// Ping a cada 5s
+setInterval(async () => {
+  try {
+    await fetch('/comando', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao: 'get_screen_size' })
+    });
+    setOnline(true);
+  } catch { setOnline(false); }
+}, 5000);
+
+// ── SENSITIVITY ────────────────────────────────────────
+const sensSlider = document.getElementById('sensitivity');
+const sensVal    = document.getElementById('sens-val');
+let sensitivity = parseFloat(sensSlider.value);
+sensSlider.addEventListener('input', () => {
+  sensitivity = parseFloat(sensSlider.value);
+  sensVal.textContent = sensitivity.toFixed(1);
+});
+
+// ── TRACKPAD ───────────────────────────────────────────
+const trackpad = document.getElementById('trackpad');
+const cursor   = document.getElementById('tp-cursor');
+const hint     = trackpad.querySelector('.trackpad-hint');
+
+let lastX = 0, lastY = 0;
+let startX = 0, startY = 0;
+let startTime = 0;
+let isDragging = false;
+let pendingDx = 0, pendingDy = 0;
+let moveTimer = null;
+
+// Two-finger scroll state
+let lastScrollY = 0;
+
+function flushMove() {
+  if (pendingDx !== 0 || pendingDy !== 0) {
+    cmd('mouse_move', { dx: Math.round(pendingDx), dy: Math.round(pendingDy) });
+    pendingDx = 0; pendingDy = 0;
+  }
+  moveTimer = null;
+}
+
+function scheduleMove(dx, dy) {
+  pendingDx += dx;
+  pendingDy += dy;
+  if (!moveTimer) moveTimer = setTimeout(flushMove, 16);
+}
+
+trackpad.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    lastX = startX = t.clientX;
+    lastY = startY = t.clientY;
+    startTime = Date.now();
+    isDragging = false;
+    cursor.style.left = (t.clientX - trackpad.getBoundingClientRect().left) + 'px';
+    cursor.style.top  = (t.clientY - trackpad.getBoundingClientRect().top) + 'px';
+    cursor.style.opacity = '1';
+    trackpad.classList.add('touching');
+  } else if (e.touches.length === 2) {
+    lastScrollY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+  }
+}, { passive: false });
+
+trackpad.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const rect = trackpad.getBoundingClientRect();
+
+  if (e.touches.length === 2) {
+    // Scroll
+    const avgY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    const delta = avgY - lastScrollY;
+    lastScrollY = avgY;
+    if (Math.abs(delta) > 1) {
+      cmd('mouse_scroll', { dy: Math.round(delta * 0.3) });
+    }
+    return;
+  }
+
+  const t = e.touches[0];
+  const dx = (t.clientX - lastX) * sensitivity;
+  const dy = (t.clientY - lastY) * sensitivity;
+  lastX = t.clientX;
+  lastY = t.clientY;
+
+  if (!isDragging) {
+    const totalDx = t.clientX - startX;
+    const totalDy = t.clientY - startY;
+    if (Math.abs(totalDx) > 6 || Math.abs(totalDy) > 6) isDragging = true;
+  }
+
+  if (isDragging) {
+    hint.style.opacity = '0';
+    cursor.style.left = (t.clientX - rect.left) + 'px';
+    cursor.style.top  = (t.clientY - rect.top) + 'px';
+    scheduleMove(dx, dy);
+  }
+}, { passive: false });
+
+trackpad.addEventListener('touchend', e => {
+  e.preventDefault();
+  cursor.style.opacity = '0';
+  trackpad.classList.remove('touching');
+  if (e.touches.length === 0) {
+    const elapsed = Date.now() - startTime;
+    if (!isDragging && elapsed < 250) {
+      cmd('mouse_click', { button: 'left' });
+      showToast('clique esq.');
+    }
+  }
+}, { passive: false });
+
+// Click buttons
+document.getElementById('btn-lclick').addEventListener('click', () => {
+  cmd('mouse_click', { button: 'left' });
+  showToast('clique esq.');
+});
+document.getElementById('btn-rclick').addEventListener('click', () => {
+  cmd('mouse_right_click');
+  showToast('clique dir.');
+});
+document.getElementById('btn-dclick').addEventListener('click', () => {
+  cmd('mouse_double_click');
+  showToast('duplo clique');
+});
+document.getElementById('btn-mclick').addEventListener('click', () => {
+  cmd('mouse_click', { button: 'middle' });
+  showToast('botão meio');
+});
+document.getElementById('btn-scroll-up').addEventListener('click', () => {
+  cmd('mouse_scroll', { dy: 5 });
+});
+document.getElementById('btn-scroll-down').addEventListener('click', () => {
+  cmd('mouse_scroll', { dy: -5 });
+});
+
+// Long-press repeat for scroll buttons
+function holdScroll(el, dy) {
+  let timer, interval;
+  el.addEventListener('touchstart', e => {
+    e.preventDefault();
+    cmd('mouse_scroll', { dy });
+    timer = setTimeout(() => {
+      interval = setInterval(() => cmd('mouse_scroll', { dy }), 80);
+    }, 350);
+  }, { passive: false });
+  el.addEventListener('touchend', () => { clearTimeout(timer); clearInterval(interval); });
+  el.addEventListener('touchcancel', () => { clearTimeout(timer); clearInterval(interval); });
+}
+holdScroll(document.getElementById('btn-scroll-up'), 5);
+holdScroll(document.getElementById('btn-scroll-down'), -5);
+
+// ── TEXT INPUT ──────────────────────────────────────────
+document.getElementById('btn-send-text').addEventListener('click', sendText);
+document.getElementById('text-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendText();
+});
+
+function sendText() {
+  const inp = document.getElementById('text-input');
+  const text = inp.value.trim();
+  if (!text) return;
+  cmd('type_text', { text }).then(() => showToast(`Enviado: ${text.slice(0,20)}`));
+  inp.value = '';
+}
+
+// ── SCREENSHOT ──────────────────────────────────────────
+document.getElementById('btn-screenshot').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-screenshot');
+  btn.textContent = 'Capturando…';
+  btn.style.opacity = '.6';
+  const data = await cmd('screenshot');
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Tirar Screenshot`;
+  btn.style.opacity = '1';
+  if (data && data.image) {
+    const area = document.getElementById('screenshot-area');
+    const img  = document.getElementById('screenshot-img');
+    const time = document.getElementById('screenshot-time');
+    img.src = 'data:image/jpeg;base64,' + data.image;
+    area.style.display = 'block';
+    time.textContent = 'Capturado às ' + new Date().toLocaleTimeString('pt-BR');
+  }
+});
+</script>
 </body>
 </html>
